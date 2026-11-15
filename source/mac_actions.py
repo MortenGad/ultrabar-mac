@@ -108,7 +108,7 @@ class Actions:
   plan=self.service.review
   if not plan or 'actionConfig' not in plan:raise ValueError('Review the Mac buttons first.')
   if args.get('reviewId')!=plan['reviewId'] or args.get('confirmed') is not True:raise ValueError('Confirm the reviewed Mac buttons first.')
-  if plan['unavailable'] and args.get('confirmReplace') is not True:raise ValueError('Confirm replacement of unknown profiles first.')
+  if (plan['unavailable'] or plan.get('changed')) and args.get('confirmReplace') is not True:raise ValueError('Confirm replacement of unknown or externally changed profiles first.')
   if time.monotonic()-plan['created']>300 or self.client.host!=plan['host'] or self.client.generation!=plan['generation']:raise ValueError('Connection changed or review expired.')
   if widgets.profile_identity(self.client.request(30710,{}))!=widgets.profile_identity(plan['expected']):raise ValueError('Profiles changed. Review again.')
   config=validate(plan['actionConfig'])

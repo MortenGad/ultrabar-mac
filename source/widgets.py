@@ -80,6 +80,15 @@ def sound_catalogue(client):
  return result
 
 def profile_identity(profiles):return sorted((p.get('value'),p.get('label')) for p in profiles)
+def changed_since_deploy(current,observed):
+ """Profile IDs whose device-reported row differs from the row read back after this app's last verified deploy.
+
+ The device exposes only profile-list metadata, so this catches external edits (for example from another
+ companion app) only when that metadata changes. Missing records mean no evidence either way.
+ Boolean fields are ignored: they can be state markers (active/default) that flip on a normal profile switch."""
+ def stable(row):return {k:v for k,v in row.items() if not isinstance(v,bool)}
+ seen={r.get('value'):stable(r) for r in observed or [] if isinstance(r,dict)}
+ return {r.get('value') for r in current if r.get('value') in seen and stable(r)!=seen[r.get('value')]}
 class WidgetService:
  def __init__(self,client,state_dir,save):self.client=client;self.directory=pathlib.Path(state_dir);self.save=save;self.review=None
  def load(self):
@@ -97,11 +106,12 @@ class WidgetService:
   if any(w['kind']=='SOUNDSCAPE' for w in doc['widgets']):catalogue=catalogue+sound_catalogue(self.client)
   ledgerpath=self.directory/'widget-deployments.json'
   ledger=json.loads(ledgerpath.read_text()) if ledgerpath.exists() else {}
-  known=[]
+  known=[];changed=set()
   if ledger.get('host')==self.client.host:
    # Only retain definitions which the app previously sent, whose IDs and names still match.
    current_pairs=set(profile_identity(current))
    known=[copy.deepcopy(p) for p in ledger.get('profiles',[]) if (p.get('id'),p.get('name')) in current_pairs]
+   changed=changed_since_deploy(current,ledger.get('observed'))&{p.get('id') for p in known}
   previous=next((p for p in known if p.get('id')==doc['profileId']),{})
   profile=copy.deepcopy(previous)
   profile.update(id=doc['profileId'],name=doc['name'],showName=doc['showNames'],isDefault=True,widget=[wire_widget(w,catalogue) for w in doc['widgets']])
@@ -113,15 +123,17 @@ class WidgetService:
   known_ids={p['id'] for p in known}
   unavailable=[p for p in current if p.get('value') not in known_ids]
   replaced=[p.get('label',p.get('value','Profile')) for p in unavailable]
+  changed_names=[p['name'] for p in known if p.get('id') in changed]
   reviewid=uuid.uuid4().hex
-  plan={'reviewId':reviewid,'host':self.client.host,'generation':self.client.generation,'created':time.monotonic(),'expected':current,'payload':payload,'document':doc,'previousKnown':known,'unavailable':unavailable}
+  plan={'reviewId':reviewid,'host':self.client.host,'generation':self.client.generation,'created':time.monotonic(),'expected':current,'payload':payload,'document':doc,'previousKnown':known,'unavailable':unavailable,'changed':changed_names}
   self.review=plan
-  return {'reviewId':reviewid,'profileName':doc['name'],'widgetCount':len(doc['widgets']),'replacedProfiles':replaced,'keptProfiles':[p['name'] for p in known if p['id']!=profile['id']],'updatingKnown':bool(previous),'profilesAfter':[p['name'] for p in payload],'needsReplacement':bool(unavailable),'summary':'Gateway registration will not be changed. Local definitions will be used for app-managed profiles; external edits to them cannot be detected.'}
+  return {'reviewId':reviewid,'profileName':doc['name'],'widgetCount':len(doc['widgets']),'replacedProfiles':replaced,'keptProfiles':[p['name'] for p in known if p['id']!=profile['id']],'updatingKnown':bool(previous),'profilesAfter':[p['name'] for p in payload],'changedProfiles':changed_names,'needsReplacement':bool(unavailable or changed_names),'summary':'Gateway registration will not be changed. Local definitions will be used for app-managed profiles; edits by other tools are detected only when profile IDs or names change.'}
  def apply(self,args):
   plan=self.review
   if not plan or args.get('reviewId')!=plan['reviewId']:raise ValueError('Review the layout again before applying.')
   if args.get('confirmed') is not True:raise ValueError('Confirm the reviewed deployment first.')
   if plan['unavailable'] and args.get('confirmReplace') is not True:raise ValueError('Confirm replacement of profiles whose layouts cannot be read.')
+  if plan.get('changed') and args.get('confirmReplace') is not True:raise ValueError('Confirm overwriting profiles that changed on the device since this app last deployed them.')
   if time.monotonic()-plan['created']>300 or self.client.host!=plan['host'] or self.client.generation!=plan['generation']:raise ValueError('This review expired or the connection changed. Review again.')
   current=self.client.request(30710,{})
   if profile_identity(current)!=profile_identity(plan['expected']):raise RuntimeError('Saved profiles changed since review. Nothing was written; review again.')
@@ -142,5 +154,8 @@ class WidgetService:
    expected=sorted((p['id'],p['name']) for p in plan['payload'])
    if profile_identity(after)!=expected:raise RuntimeError('Saved profile names do not match the deployment.')
   except Exception as e:raise RuntimeError('Layout write was acknowledged and saved locally, but activation or profile-list verification failed: '+str(e))
+  # Remember what the device reported, so later reviews can flag edits made by other tools.
+  ids={p['id'] for p in plan['payload']}
+  self.save(self.directory/'widget-deployments.json',{'host':plan['host'],'profiles':plan['payload'],'observed':[r for r in after if r.get('value') in ids]})
   record['stage']='profile-list-verified';self.save(recordpath,record)
   return {'profiles':after,'profileId':plan['document']['profileId'],'message':'Layout saved; profile list verified. Check the Ultrabar display—the device does not support widget read-back.'}

@@ -237,6 +237,8 @@ struct WidgetReviewView:View {
  @ObservedObject var model:Model
  @State private var confirmedReplacement=false
  var removed:[String] { model.widgetReview["replacedProfiles"] as? [String] ?? [] }
+ var changed:[String] { model.widgetReview["changedProfiles"] as? [String] ?? [] }
+ var needsConfirmation:Bool { !removed.isEmpty || !changed.isEmpty }
  var body:some View {
   VStack(alignment:.leading,spacing:20) {
    Text("Apply widget layout").font(.title2.bold())
@@ -245,18 +247,25 @@ struct WidgetReviewView:View {
     Label("These current profiles will be replaced",systemImage:"exclamationmark.triangle.fill").foregroundStyle(.orange)
     Text(removed.joined(separator:", ")).font(.headline)
     Text("The device does not expose their full layouts. They cannot be restored from this app’s change record.").foregroundStyle(.secondary)
+   }
+   if !changed.isEmpty {
+    Label("These profiles changed on the device since this app last applied them",systemImage:"exclamationmark.triangle.fill").foregroundStyle(.orange)
+    Text(changed.joined(separator:", ")).font(.headline)
+    Text("Another tool, such as UltraBar Studio, may have edited them. Applying restores this app’s last recorded version and discards those edits.").foregroundStyle(.secondary)
+   }
+   if needsConfirmation {
     Toggle("I understand that those profiles and their widgets will be replaced",isOn:$confirmedReplacement).toggleStyle(.checkbox)
    } else { Text("Updates the selected app-managed layout and retains the other locally recorded profiles.").foregroundStyle(.secondary) }
    VStack(alignment:.leading,spacing:8) {
     Text("Profiles after applying").font(.headline)
     Text((model.widgetReview["profilesAfter"] as? [String] ?? []).joined(separator:", "))
     Text("Gateway registration is unchanged. Module bindings are retained where they are present in this app’s local profile record.").font(.caption).foregroundStyle(.secondary)
-    Text("External edits to app-managed profiles cannot be detected. The app can verify the profile list after saving, but you must check the actual widgets on the Ultrabar.").font(.caption).foregroundStyle(.secondary)
+    Text("Edits by other tools are detected only when profile IDs or names change. Widget changes inside an existing profile cannot be detected. The app can verify the profile list after saving, but you must check the actual widgets on the Ultrabar.").font(.caption).foregroundStyle(.secondary)
    }.padding(14).background(Color.primary.opacity(0.04),in:RoundedRectangle(cornerRadius:10))
    HStack {
     Button("Cancel") { model.showWidgetReview=false }.keyboardShortcut(.cancelAction)
     Spacer()
-    Button("Apply layout") { model.showWidgetReview=false;model.send("widget_deploy",["reviewId":model.widgetReview["reviewId"] as? String ?? "","confirmed":true,"confirmReplace":confirmedReplacement]) }.buttonStyle(.borderedProminent).tint(.mint).disabled(!removed.isEmpty && !confirmedReplacement)
+    Button("Apply layout") { model.showWidgetReview=false;model.send("widget_deploy",["reviewId":model.widgetReview["reviewId"] as? String ?? "","confirmed":true,"confirmReplace":confirmedReplacement]) }.buttonStyle(.borderedProminent).tint(.mint).disabled(needsConfirmation && !confirmedReplacement)
    }
   }.padding(28).frame(width:590)
  }
