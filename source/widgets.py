@@ -127,7 +127,7 @@ class WidgetService:
   reviewid=uuid.uuid4().hex
   plan={'reviewId':reviewid,'host':self.client.host,'generation':self.client.generation,'created':time.monotonic(),'expected':current,'payload':payload,'document':doc,'previousKnown':known,'unavailable':unavailable,'changed':changed_names}
   self.review=plan
-  return {'reviewId':reviewid,'profileName':doc['name'],'widgetCount':len(doc['widgets']),'replacedProfiles':replaced,'keptProfiles':[p['name'] for p in known if p['id']!=profile['id']],'updatingKnown':bool(previous),'profilesAfter':[p['name'] for p in payload],'changedProfiles':changed_names,'needsReplacement':bool(unavailable or changed_names),'summary':'Gateway registration will not be changed. Local definitions will be used for app-managed profiles; external edits are detected only when they change the reported profile-list metadata.'}
+  return {'reviewId':reviewid,'profileName':doc['name'],'widgetCount':len(doc['widgets']),'replacedProfiles':replaced,'keptProfiles':[p['name'] for p in known if p['id']!=profile['id']],'updatingKnown':bool(previous),'profilesAfter':[p['name'] for p in payload],'changedProfiles':changed_names,'needsReplacement':bool(unavailable or changed_names),'summary':'Gateway registration will not be changed. Local definitions will be used for app-managed profiles; edits by other tools are detected only when profile IDs or names change.'}
  def apply(self,args):
   plan=self.review
   if not plan or args.get('reviewId')!=plan['reviewId']:raise ValueError('Review the layout again before applying.')

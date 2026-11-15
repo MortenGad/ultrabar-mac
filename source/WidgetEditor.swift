@@ -260,7 +260,7 @@ struct WidgetReviewView:View {
     Text("Profiles after applying").font(.headline)
     Text((model.widgetReview["profilesAfter"] as? [String] ?? []).joined(separator:", "))
     Text("Gateway registration is unchanged. Module bindings are retained where they are present in this app’s local profile record.").font(.caption).foregroundStyle(.secondary)
-    Text("External edits to app-managed profiles are detected only when they change the profile list the device reports. The app can verify the profile list after saving, but you must check the actual widgets on the Ultrabar.").font(.caption).foregroundStyle(.secondary)
+    Text("Edits by other tools are detected only when profile IDs or names change. Widget changes inside an existing profile cannot be detected. The app can verify the profile list after saving, but you must check the actual widgets on the Ultrabar.").font(.caption).foregroundStyle(.secondary)
    }.padding(14).background(Color.primary.opacity(0.04),in:RoundedRectangle(cornerRadius:10))
    HStack {
     Button("Cancel") { model.showWidgetReview=false }.keyboardShortcut(.cancelAction)
