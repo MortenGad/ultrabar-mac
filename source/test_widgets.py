@@ -75,6 +75,42 @@ class Tests(unittest.TestCase):
   r=self.prepare();self.c.fail=1103
   with self.assertRaisesRegex(RuntimeError,'acknowledged'):self.apply(r)
   self.assertTrue((self.path/'widget-deployments.json').exists());self.assertEqual(self.s.load()['document'],widgets.validate(self.doc))
+ def deployed_with_metadata(self):
+  # Simulate a device whose profile list reports extra metadata (e.g. icon).
+  self.c.request=self._metadata_request
+  r=self.prepare();self.apply(r);return r
+ def _metadata_request(self,act,data,_orig=Device.request):
+  out=_orig(self.c,act,data)
+  if act==1108:self.c.profiles=[dict(x,icon='a') for x in self.c.profiles]
+  return out
+ def test_observed_rows_saved_after_verified_deploy(self):
+  self.deployed_with_metadata()
+  ledger=json.loads((self.path/'widget-deployments.json').read_text())
+  self.assertEqual(ledger['observed'],[{'value':self.doc['profileId'],'label':self.doc['name'],'icon':'a'}])
+ def test_external_metadata_change_requires_confirmation(self):
+  self.deployed_with_metadata();self.c.profiles[0]['icon']='edited-by-studio'
+  r=self.prepare();self.assertEqual(r['changedProfiles'],[self.doc['name']]);self.assertTrue(r['needsReplacement']);self.assertEqual(r['replacedProfiles'],[])
+  writes=[a for a,d in self.c.calls].count(1108)
+  with self.assertRaisesRegex(ValueError,'changed on the device'):self.s.apply({'reviewId':r['reviewId'],'confirmed':True})
+  self.assertEqual([a for a,d in self.c.calls].count(1108),writes)
+  self.apply(r);self.assertEqual([a for a,d in self.c.calls].count(1108),writes+1)
+ def test_unchanged_metadata_not_flagged(self):
+  self.deployed_with_metadata();r=self.prepare();self.assertEqual(r['changedProfiles'],[]);self.assertFalse(r['needsReplacement'])
+ def test_active_marker_flip_not_flagged(self):
+  self.deployed_with_metadata();self.c.profiles[0]['isDefault']=False
+  ledger=json.loads((self.path/'widget-deployments.json').read_text());ledger['observed'][0]['isDefault']=True;private_save(self.path/'widget-deployments.json',ledger)
+  self.assertEqual(self.prepare()['changedProfiles'],[])
+ def test_mac_actions_flow_requires_confirmation_when_only_changed(self):
+  self.deployed_with_metadata();self.c.profiles[0]['icon']='edited'
+  r=self.prepare();self.assertEqual(r['replacedProfiles'],[]);self.assertTrue(self.s.review['changed'])
+  self.s.review['actionConfig']={}
+  import mac_actions
+  m=mac_actions.Actions.__new__(mac_actions.Actions);m.service=self.s;m.client=self.c
+  with self.assertRaisesRegex(ValueError,'externally changed'):m.apply({'reviewId':r['reviewId'],'confirmed':True})
+ def test_legacy_ledger_without_observed_not_flagged(self):
+  p={'id':self.doc['profileId'],'name':self.doc['name'],'module':[],'widget':[]}
+  private_save(self.path/'widget-deployments.json',{'host':self.c.host,'profiles':[p]});self.c.profiles=[{'value':p['id'],'label':p['name'],'icon':'x'}]
+  r=self.prepare();self.assertEqual(r['changedProfiles'],[]);self.assertFalse(r['needsReplacement'])
 if __name__=='__main__':unittest.main()
 
 class ExtraWidgetTests(unittest.TestCase):

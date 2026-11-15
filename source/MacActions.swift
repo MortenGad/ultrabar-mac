@@ -100,6 +100,7 @@ struct MacButtonsReview:View {
  @ObservedObject var model:Model
  @State private var replace=false
  var removed:[String] { model.macReview["replacedProfiles"] as? [String] ?? [] }
+ var changed:[String] { model.macReview["changedProfiles"] as? [String] ?? [] }
  var body:some View {
   VStack(alignment:.leading,spacing:18) {
    Text("Apply Mac app buttons").font(.title2.bold())
@@ -107,11 +108,16 @@ struct MacButtonsReview:View {
    Text("Profiles after deployment: \((model.macReview["profilesAfter"] as? [String] ?? []).joined(separator:", "))")
    if !removed.isEmpty {
     Text("These profiles cannot be preserved: \(removed.joined(separator:", ")). Their layouts cannot be restored from this app’s change record.").foregroundStyle(.orange)
+   }
+   if !changed.isEmpty {
+    Text("These profiles changed on the device since this app last applied them: \(changed.joined(separator:", ")). Another tool, such as UltraBar Studio, may have edited them; applying discards those edits.").foregroundStyle(.orange)
+   }
+   if !removed.isEmpty || !changed.isEmpty {
     Toggle("Replace these profiles",isOn:$replace)
    }
    Text("The app will enable the configured launch buttons. It must stay open and connected.").foregroundStyle(.secondary)
    if (model.macReview["registerModules"] as? Int ?? 0)>0 { Text("The device has no registered modules. This also registers \(model.macReview["registerModules"] as? Int ?? 0) discovered wired modules for physical button events.").foregroundStyle(.secondary) }
-   HStack { Button("Cancel") { model.showMacReview=false };Spacer();Button("Apply buttons") { model.showMacReview=false;model.send("actions_deploy",["reviewId":model.macReview["reviewId"] ?? "","confirmed":true,"confirmReplace":replace]) }.buttonStyle(.borderedProminent).disabled(!removed.isEmpty && !replace) }
+   HStack { Button("Cancel") { model.showMacReview=false };Spacer();Button("Apply buttons") { model.showMacReview=false;model.send("actions_deploy",["reviewId":model.macReview["reviewId"] ?? "","confirmed":true,"confirmReplace":replace]) }.buttonStyle(.borderedProminent).disabled((!removed.isEmpty || !changed.isEmpty) && !replace) }
   }.padding(28).frame(width:550)
  }
 }

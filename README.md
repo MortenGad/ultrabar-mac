@@ -54,6 +54,8 @@ The Mac briefly serves only the selected image over HTTP on its LAN interface. A
 
 **Profile deployment can replace device layouts.** The available firmware operation writes the whole profile list, while existing widget definitions cannot be downloaded. Unknown profiles require explicit replacement confirmation. Known app-managed profiles are preserved from a local ledger, but external edits with unchanged profile IDs and names cannot be detected. Review every deployment. Profile-name records are not restorable layout backups.
 
+**Using other companion apps on the same CoreBAR.** Tools such as [UltraBar Studio](https://github.com/qlerup/ultrabar-studio) (Windows) write the same whole-profile list. If another tool edits a profile that Ultrabar Mac deployed and keeps its ID and name, applying from Ultrabar Mac restores this app's last recorded version and discards those edits. After each verified deployment the app records the profile-list metadata the device reports. Later reviews flag app-managed profiles whose metadata has changed and require explicit confirmation. Edits that change only widgets, without changing that metadata, still cannot be detected. Manage each profile from one app only, and create a separate profile for each tool.
+
 The older **Mac volume** deployment replaces profiles, widgets and gateway registration with a dedicated volume profile. It blocks deployment if other custom profiles exist. It is not a safe way to add rotation controls to an existing custom layout. Physical rotation behavior remains unverified.
 
 Live checks have confirmed pairing, module status, profile deployment acknowledgments, a Mac app-launch event, and image fetch with unchanged profile names and screen settings. Physical key numbering, all press gestures, weather/audio rendering and rotation still need broader hardware testing.
@@ -72,7 +74,7 @@ The TLS pin matches the public certificate observed in CoreBridge v1.0.3. It is 
 python3 -m unittest discover -s source -p 'test_*.py' -v
 ```
 
-The 52 tests cover protocol framing, pairing, rejected writes, profile preservation, app action restrictions, module status merging and image-transfer access controls. They do not replace physical-device testing.
+The 58 tests cover protocol framing, pairing, rejected writes, profile preservation, external-change detection, app action restrictions, module status merging and image-transfer access controls. They do not replace physical-device testing.
 
 - `source/UltrabarMac.swift`, `WidgetEditor.swift`, `MacActions.swift`, `Wallpaper.swift`: SwiftUI interface.
 - `source/bridge.py`: device transport, pairing and stdio commands.
